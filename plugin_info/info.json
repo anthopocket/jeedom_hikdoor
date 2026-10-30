@@ -1,0 +1,31 @@
+{
+    "id": "hikinterphone",
+    "name": "Hikdoor",
+    "description": {
+        "fr_FR": "Hikdoor : pilotage local des portiers vidéo Hikvision (SDK port 8000 ou ISAPI) : sonnerie en temps réel, décrocher/raccrocher, interphonie depuis une tablette, vidéo live, ouverture des sorties (portillon, portail)."
+    },
+    "licence": "AGPL",
+    "author": "Anthony",
+    "require": "4.2",
+    "category": "security",
+    "hasDependency": true,
+    "hasOwnDeamon": true,
+    "maxDependancyInstallTime": 10,
+    "changelog": "",
+    "documentation": "",
+    "language": [
+        "fr_FR"
+    ],
+    "compatibility": [
+        "miniplus",
+        "smart",
+        "docker",
+        "diy",
+        "rpi",
+        "vm"
+    ],
+    "specialAttributes": {
+        "object": [],
+        "user": []
+    }
+}

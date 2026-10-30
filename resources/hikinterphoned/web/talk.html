@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>Hikdoor</title>
+<style>
+  :root {
+    --bg: #000; --tile: #161616; --tile2: #222; --txt: #f2f2f2; --muted: #8a8a8a;
+    --green: #2ecc71; --red: #e74c3c; --blue: #3498db; --orange: #f39c12;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; padding: 12px 16px 16px; gap: 12px;
+    -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  #state { font-size: 14px; color: var(--muted); padding: 4px 10px; border-radius: 999px; background: var(--tile); white-space: nowrap; }
+  #state.ring { background: var(--orange); color: #000; animation: pulse 0.8s infinite alternate; }
+  #state.call { background: var(--green); color: #000; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: .45; } }
+  main { flex: 1; display: grid; gap: 12px; grid-template-columns: 1fr; grid-template-rows: auto 1fr; min-height: 0; }
+  @media (min-width: 820px) and (orientation: landscape) {
+    main { grid-template-columns: 1.4fr 1fr; grid-template-rows: 1fr; }
+  }
+  .tile { background: var(--tile); border-radius: 14px; padding: 12px; min-height: 0; }
+  #video { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; aspect-ratio: 16 / 9; padding: 0; }
+  #video img { width: 100%; height: 100%; object-fit: contain; display: none; }
+  #video .ph { color: var(--muted); font-size: 14px; }
+  #controls { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  button { font: inherit; color: var(--txt); background: var(--tile2); border: 0; border-radius: 12px;
+    padding: 14px 6px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  button:active { filter: brightness(1.3); }
+  button:disabled { opacity: .35; }
+  .b-green { background: var(--green); color: #000; }
+  .b-red { background: var(--red); }
+  .b-blue { background: var(--blue); }
+  #audioBtn { width: 100%; padding: 16px; font-size: 17px; }
+  #ptt { width: 100%; flex: 1; min-height: 140px; border-radius: 18px; font-size: 22px; background: #2a2a2a;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; touch-action: none; }
+  #ptt small { font-size: 13px; font-weight: 400; color: var(--muted); }
+  #ptt.on { background: var(--green); color: #000; }
+  #ptt.on small { color: #003; }
+  .opts { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; font-size: 14px; color: var(--muted); }
+  .opts label { display: flex; align-items: center; gap: 8px; }
+  input[type=range] { width: 110px; accent-color: var(--blue); }
+  #meter { height: 6px; border-radius: 3px; background: var(--tile2); overflow: hidden; }
+  #meter div { height: 100%; width: 0; background: var(--green); transition: width .08s; }
+  #msg { min-height: 18px; font-size: 13px; color: var(--orange); }
+  .seg { display: inline-flex; background: var(--tile2); border-radius: 10px; padding: 3px; }
+  .seg button { padding: 8px 12px; font-size: 13px; background: transparent; border-radius: 8px; }
+  .seg button.sel { background: var(--blue); }
+
+  /* Mode intégré (iframe dans un Design Jeedom) : ?embed=1 */
+  body.embed { padding: 6px; gap: 6px; }
+  body.embed h1, body.embed #optsTile { display: none; }
+  body.embed header { justify-content: center; }
+  body.embed main { grid-template-columns: 1fr !important; grid-template-rows: auto !important; gap: 6px; }
+  body.embed #controls { gap: 6px; }
+  body.embed #ptt { min-height: 80px; font-size: 18px; }
+  body.embed button { padding: 10px 4px; font-size: 14px; }
+  body.embed #audioBtn { padding: 10px; font-size: 15px; }
+  body.novideo #video { display: none; }
+  body.transparent, body.transparent html { background: transparent; }
+  html.transparent { background: transparent; }
+  #msg.err { color: var(--red); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Hikdoor</h1>
+  <span id="state">Connexion…</span>
+</header>
+
+<main>
+  <section class="tile" id="video">
+    <span class="ph" id="ph">Image du portier</span>
+    <img id="snap" alt="">
+  </section>
+
+  <section id="controls">
+    <button id="audioBtn" class="b-blue">🎙️ Activer l'audio</button>
+
+    <button id="ptt" disabled>
+      <span id="pttLabel">Maintenir pour parler</span>
+      <small id="pttHint">Activez d'abord l'audio</small>
+    </button>
+    <div id="meter"><div></div></div>
+
+    <div class="row">
+      <button id="answer" class="b-green">Décrocher</button>
+      <button id="hangup" class="b-red">Raccrocher</button>
+      <button class="door" data-door="1">🔓 Ouvrir</button>
+    </div>
+    <div class="row" id="doorsMore" style="display:none"></div>
+
+    <div class="tile opts" id="optsTile">
+      <span class="seg" id="mode">
+        <button data-mode="ptt" class="sel">Appuyer pour parler</button>
+        <button data-mode="free">Mains libres</button>
+      </span>
+      <label>🔊 <input type="range" id="vol" min="0" max="4" step="0.1" value="1.5"></label>
+      <label>🎙️ <input type="range" id="gain" min="0" max="4" step="0.1" value="1.5"></label>
+      <label><input type="checkbox" id="live" checked> Image</label>
+    </div>
+    <div id="msg"></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const RATE = 8000;
+  const q = new URLSearchParams(location.search);
+  const base = "?eq=" + encodeURIComponent(q.get("eq") || "") + "&token=" + encodeURIComponent(q.get("token") || "");
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem("hik_" + k); return v === null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem("hik_" + k, v); } catch (e) {} }
+  };
+
+  let ws = null, ctx = null, mic = null, proc = null, srcNode = null;
+  let audioOn = false, talking = false, mode = store.get("mode", "ptt");
+  let playTime = 0, resampPos = 0, rest = new Float32Array(0), wakeLock = null;
+
+  // Options d'intégration : embed=1 (compact), video=0/1, bg=transparent, mode=ptt|free
+  const embed = q.get("embed") === "1";
+  if (embed) document.body.classList.add("embed");
+  if (q.get("video") === "0" || (embed && q.get("video") !== "1" && q.get("video") !== "snap")) document.body.classList.add("novideo");
+  if (q.get("bg") === "transparent") { document.body.classList.add("transparent"); document.documentElement.classList.add("transparent"); }
+  if (q.get("mode") === "ptt" || q.get("mode") === "free") mode = q.get("mode");
+
+  $("vol").value = store.get("vol", "1.5");
+  $("gain").value = store.get("gain", "1.5");
+  $("live").checked = store.get("live", "1") === "1";
+  ["vol", "gain"].forEach((id) => $(id).addEventListener("input", () => store.set(id, $(id).value)));
+
+  const msg = (t) => { $("msg").textContent = t || ""; };
+
+  // ------------------------------------------------------------------ WebSocket
+  function connect() {
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws" + base);
+    ws.binaryType = "arraybuffer";
+    ws.onopen = () => { if (audioOn) ws.send(JSON.stringify({ cmd: "audio_start" })); };
+    ws.onclose = () => { setState("Hors ligne"); setTimeout(connect, 3000); };
+    ws.onmessage = (ev) => {
+      if (typeof ev.data !== "string") { play(ev.data); return; }
+      const m = JSON.parse(ev.data);
+      if (m.type === "status") { if (m.name) $("title").textContent = m.name; if (m.doors) setDoors(m.doors); setCall(m.callStatus); }
+      else if (m.type === "audio") {
+        if (m.state === "on") msg("Audio connecté (" + m.codec + ")");
+        else if (audioOn) msg("Audio fermé");
+      }
+      else if (m.type === "error" || m.type === "warning") msg(m.message);
+    };
+  }
+
+  function setState(text, cls) { const s = $("state"); s.textContent = text; s.className = cls || ""; }
+  function setCall(st) {
+    const s = (st || "").toLowerCase();
+    if (s === "ring" || s === "ringing") {
+      setState("🔔 Ça sonne !", "ring");
+      if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+    } else if (s === "oncall" || s === "talking") setState("En communication", "call");
+    else if (s === "idle") setState("Au repos");
+    else setState(st || "Inconnu");
+  }
+
+  // ------------------------------------------------------------------ Audio
+  async function startAudio() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $("msg").className = "err";
+      msg(window.top !== window
+        ? "Micro bloqué : le Design doit être ouvert en https (ou Jeedom déclaré « origine sécurisée » dans Chrome / Fully Kiosk)."
+        : "Micro indisponible : ouvrez cette page en https dans Chrome (pas dans l'appli Jeedom).");
+      return;
+    }
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      await ctx.resume();
+      mic = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+    } catch (e) {
+      $("msg").className = "err";
+      msg("Accès au micro refusé : " + e.message + (window.top !== window ? " (l'iframe doit avoir allow=\"microphone\")" : ""));
+      return;
+    }
+    $("msg").className = "";
+    srcNode = ctx.createMediaStreamSource(mic);
+    proc = ctx.createScriptProcessor(2048, 1, 1);
+    proc.onaudioprocess = onMic;
+    srcNode.connect(proc);
+    proc.connect(ctx.destination);
+    audioOn = true;
+    playTime = 0;
+    rest = new Float32Array(0);
+    resampPos = 0;
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "audio_start" }));
+    $("audioBtn").textContent = "⏹ Couper l'audio";
+    $("audioBtn").className = "b-red";
+    $("ptt").disabled = false;
+    applyMode();
+    try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+  }
+
+  function stopAudio() {
+    audioOn = false;
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "audio_stop" }));
+    try { proc && proc.disconnect(); srcNode && srcNode.disconnect(); } catch (e) {}
+    if (mic) mic.getTracks().forEach((t) => t.stop());
+    if (ctx) ctx.close();
+    ctx = mic = proc = srcNode = null;
+    setTalking(false);
+    $("audioBtn").textContent = "🎙️ Activer l'audio";
+    $("audioBtn").className = "b-blue";
+    $("ptt").disabled = true;
+    $("pttHint").textContent = "Activez d'abord l'audio";
+    $("meter").firstElementChild.style.width = "0";
+    try { wakeLock && wakeLock.release(); } catch (e) {}
+    wakeLock = null;
+  }
+
+  // Ré-échantillonnage vers 8 kHz (moyenne par fenêtre = filtre passe-bas simple)
+  function downsample(input) {
+    const ratio = ctx.sampleRate / RATE;
+    const buf = new Float32Array(rest.length + input.length);
+    buf.set(rest); buf.set(input, rest.length);
+    const out = [];
+    let t = resampPos;
+    while (t + ratio <= buf.length) {
+      const a = Math.floor(t), b = Math.floor(t + ratio);
+      let s = 0;
+      for (let i = a; i < b; i++) s += buf[i];
+      out.push(b > a ? s / (b - a) : buf[a]);
+      t += ratio;
+    }
+    const used = Math.floor(t);
+    rest = buf.slice(used);
+    resampPos = t - used;
+    return out;
+  }
+
+  function onMic(e) {
+    e.outputBuffer.getChannelData(0).fill(0);
+    if (!audioOn || !ws || ws.readyState !== 1) return;
+    const samples = downsample(e.inputBuffer.getChannelData(0));
+    const gain = parseFloat($("gain").value);
+    const live = mode === "free" || talking;
+    const pcm = new Int16Array(samples.length);
+    let peak = 0;
+    for (let i = 0; i < samples.length; i++) {
+      let v = live ? samples[i] * gain : 0;
+      v = Math.max(-1, Math.min(1, v));
+      peak = Math.max(peak, Math.abs(v));
+      pcm[i] = v * 32767;
+    }
+    $("meter").firstElementChild.style.width = Math.round(peak * 100) + "%";
+    ws.send(pcm.buffer);
+  }
+
+  function play(arrayBuf) {
+    if (!audioOn || !ctx) return;
+    if (mode === "ptt" && talking) return;          // semi-duplex : pas d'écho
+    const pcm = new Int16Array(arrayBuf);
+    if (!pcm.length) return;
+    const buf = ctx.createBuffer(1, pcm.length, RATE);
+    const ch = buf.getChannelData(0);
+    const vol = parseFloat($("vol").value);
+    for (let i = 0; i < pcm.length; i++) ch[i] = Math.max(-1, Math.min(1, (pcm[i] / 32768) * vol));
+    const node = ctx.createBufferSource();
+    node.buffer = buf;
+    node.connect(ctx.destination);
+    const now = ctx.currentTime;
+    if (playTime < now + 0.03 || playTime > now + 0.8) playTime = now + 0.15;  // tampon anti-saccades
+    node.start(playTime);
+    playTime += buf.duration;
+  }
+
+  // ------------------------------------------------------------------ Appuyer pour parler
+  function setTalking(on) {
+    talking = on;
+    $("ptt").classList.toggle("on", on || (audioOn && mode === "free"));
+    if (mode === "ptt") $("pttLabel").textContent = on ? "🎙️ Vous parlez…" : "Maintenir pour parler";
+  }
+  function applyMode() {
+    document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("sel", b.dataset.mode === mode));
+    if (mode === "free") {
+      $("pttLabel").textContent = "🎙️ Micro ouvert";
+      $("pttHint").textContent = "Mains libres : parlez normalement";
+    } else {
+      $("pttLabel").textContent = "Maintenir pour parler";
+      $("pttHint").textContent = audioOn ? "Relâchez pour écouter" : "Activez d'abord l'audio";
+    }
+    setTalking(false);
+  }
+  document.querySelectorAll("#mode button").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.mode; store.set("mode", mode); applyMode();
+  }));
+  const ptt = $("ptt");
+  ptt.addEventListener("pointerdown", (e) => {
+    if (!audioOn || mode !== "ptt") return;
+    ptt.setPointerCapture(e.pointerId); setTalking(true);
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((ev) =>
+    ptt.addEventListener(ev, () => { if (mode === "ptt") setTalking(false); }));
+  ptt.addEventListener("contextmenu", (e) => e.preventDefault());
+  window.addEventListener("keydown", (e) => { if (e.code === "Space" && !e.repeat && audioOn && mode === "ptt") setTalking(true); });
+  window.addEventListener("keyup", (e) => { if (e.code === "Space" && mode === "ptt") setTalking(false); });
+
+  $("audioBtn").addEventListener("click", () => (audioOn ? stopAudio() : startAudio()));
+
+  // ------------------------------------------------------------------ Actions
+  async function act(cmd, label) {
+    try {
+      const r = await fetch("action" + base + "&cmd=" + cmd, { method: "POST" });
+      const j = await r.json();
+      msg(j.ok ? label : "Erreur : " + j.message);
+    } catch (e) { msg("Erreur : " + e.message); }
+  }
+  $("answer").addEventListener("click", () => act("answer", "Appel décroché"));
+  $("hangup").addEventListener("click", () => { act("hangUp", "Appel raccroché"); if (audioOn) stopAudio(); });
+  // Une ou plusieurs sorties (portillon, portail…) : boutons nommés selon la configuration Jeedom
+  function doorButton(btn, d) {
+    btn.dataset.door = d.n;
+    btn.textContent = "🔓 " + d.name;
+    btn.onclick = () => act("open&door=" + d.n, d.name + " ouvert(e)");
+  }
+  function setDoors(doors) {
+    const first = document.querySelector("button.door[data-door]");
+    doorButton(first, doors[0] || { n: 1, name: "Ouvrir" });
+    const more = $("doorsMore");
+    more.innerHTML = "";
+    doors.slice(1).forEach((d) => {
+      const b = document.createElement("button");
+      b.className = "door";
+      doorButton(b, d);
+      more.appendChild(b);
+    });
+    more.style.display = doors.length > 1 ? "grid" : "none";
+    more.style.gridTemplateColumns = "repeat(" + Math.max(1, doors.length - 1) + ", 1fr)";
+  }
+  doorButton(document.querySelector("button.door[data-door]"), { n: 1, name: "Ouvrir" });
+
+  // ------------------------------------------------------------------ Image
+  // Vidéo live MJPEG (ffmpeg côté démon) ; repli automatique sur des captures si le flux ne vient pas.
+  const img = $("snap");
+  let snapTimer = null, watchTimer = null, videoMode = "live", liveFails = 0;
+  const wanted = () => $("live").checked && !document.hidden && !document.body.classList.contains("novideo");
+  function shown() { img.style.display = "block"; $("ph").style.display = "none"; }
+  function stopVideo() {
+    clearTimeout(snapTimer); clearTimeout(watchTimer);
+    img.removeAttribute("src");
+  }
+  function startVideo() {
+    stopVideo();
+    if (!wanted()) return;
+    if (videoMode === "live") {
+      img.src = "mjpeg" + base + "&t=" + Date.now();
+      // Si aucune image n'est arrivée en 8 s, on bascule sur les captures
+      watchTimer = setTimeout(() => {
+        if (!img.naturalWidth) { liveFails++; videoMode = "snap"; msg("Vidéo live indisponible, images fixes"); startVideo(); }
+      }, 8000);
+    } else {
+      snapTimer = setTimeout(() => { img.src = "snapshot" + base + "&t=" + Date.now(); }, 0);
+    }
+  }
+  img.onload = () => {
+    shown();
+    if (videoMode === "snap" && wanted()) snapTimer = setTimeout(() => { img.src = "snapshot" + base + "&t=" + Date.now(); }, 700);
+  };
+  img.onerror = () => {
+    if (!wanted() || !img.getAttribute("src")) return;
+    if (videoMode === "live") {
+      liveFails++;
+      if (liveFails >= 2) { videoMode = "snap"; msg("Vidéo live indisponible, images fixes"); }
+      watchTimer = setTimeout(startVideo, 3000);
+    } else {
+      snapTimer = setTimeout(() => { img.src = "snapshot" + base + "&t=" + Date.now(); }, 5000);
+    }
+  };
+  if (q.get("video") === "snap") videoMode = "snap";
+  $("live").addEventListener("change", () => { store.set("live", $("live").checked ? "1" : "0"); startVideo(); });
+  document.addEventListener("visibilitychange", () => (document.hidden ? stopVideo() : startVideo()));
+  window.addEventListener("pagehide", stopVideo);
+
+  connect();
+  applyMode();
+  startVideo();
+})();
+</script>
+</body>
+</html>

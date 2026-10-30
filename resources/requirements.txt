@@ -1,0 +1,3 @@
+# Librairies Python du démon hikinterphone (versions minimales requises)
+requests>=2.25
+aiohttp>=3.8
